@@ -1,0 +1,27 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+dist/
+.cache/
+
+# 로컬 백업 (개인 메모 데이터가 들어있음 — 절대 커밋하지 말 것)
+backup/
+*.bak
+
+# 로그
+_out.log
+_err.log
+*.log
+
+# 개발 중 임시 파일
+memos*.json
+settings.json
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# NVIDIA 드라이버가 만드는 찌꺼기
+NVIDIA Corporation/

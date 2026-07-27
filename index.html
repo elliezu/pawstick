@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:transparent;overflow:hidden}
+body{
+  font-family:'Pretendard Variable',Pretendard,system-ui,sans-serif;
+  color:#3B3733;padding:7px 0 0;
+}
+#card{
+  height:100%;background:#FFDCC6;border-radius:3px;
+  box-shadow:0 1px 2px rgba(0,0,0,.16),0 8px 20px -8px rgba(0,0,0,.36);
+  display:flex;flex-direction:column;position:relative;
+}
+
+/* 마스킹테이프 = 드래그 핸들.
+   판정 영역(#tape)에는 transform을 걸지 않는다. 회전은 안쪽 i에만 걸어야
+   Electron 드래그 히트영역이 어긋나지 않는다. */
+#tape{
+  position:absolute;top:-7px;left:calc(50% - 50px);
+  width:100px;height:27px;
+  -webkit-app-region:drag;
+  z-index:20;
+}
+#tape i{
+  position:absolute;inset:1px;
+  background:rgba(255,255,255,.58);
+  box-shadow:0 1px 2px rgba(0,0,0,.13);
+  transform:rotate(-1.4deg);
+  pointer-events:none;
+}
+#tape i::after{
+  content:'';position:absolute;inset:0;opacity:.5;
+  background:repeating-linear-gradient(90deg,transparent 0 5px,rgba(255,255,255,.5) 5px 10px);
+}
+
+/* 접힌 모서리 = 크기 조절 손잡이 */
+.grip{
+  position:absolute;right:0;bottom:0;width:17px;height:17px;
+  cursor:nwse-resize;z-index:22;
+}
+.grip::after{
+  content:'';position:absolute;right:0;bottom:0;
+  border-width:0 0 16px 16px;border-style:solid;
+  border-color:transparent transparent rgba(0,0,0,.13) transparent;
+  transition:border-color .15s;
+}
+#card:hover .grip::after{border-bottom-color:rgba(0,0,0,.22)}
+
+.title{
+  margin:0 12px;padding:24px 3px 7px;
+  font-size:15px;font-weight:700;line-height:1.35;
+  border-bottom:1.5px solid rgba(59,55,51,.16);
+  outline:none;-webkit-app-region:no-drag;
+}
+.title:empty::before{content:attr(data-ph);color:rgba(59,55,51,.3)}
+
+.body{
+  flex:1;padding:11px 15px 12px;
+  font-size:13.5px;line-height:1.85;
+  outline:none;overflow-y:auto;word-break:break-word;
+  -webkit-app-region:no-drag;
+}
+.body:empty::before{content:attr(data-ph);color:rgba(59,55,51,.3)}
+.body::-webkit-scrollbar{width:6px}
+.body::-webkit-scrollbar-thumb{background:rgba(59,55,51,.2);border-radius:3px}
+.body b,.body strong{font-weight:700}
+.body blockquote{margin:0 0 0 18px;padding:0;border:0}
+
+/* 불릿 목록 — 문자 대심 원을 그린다 (노션처럼 진하게)
+   들여쓰기 단계에 따라 모양이 바뀜다: ● → ○ → ■ */
+.body .bullet{position:relative;padding-left:20px}
+.body .bullet::before{
+  content:'';position:absolute;left:5px;top:.72em;
+  width:6px;height:6px;border-radius:50%;
+  background:rgba(59,55,51,.82);
+}
+/* 2단계 — 빈 원 */
+.body blockquote .bullet::before{
+  background:none;
+  border:1.6px solid rgba(59,55,51,.72);
+  width:6px;height:6px;
+}
+/* 3단계 — 네모 */
+.body blockquote blockquote .bullet::before{
+  background:rgba(59,55,51,.78);
+  border:0;border-radius:1px;
+  width:5px;height:5px;top:.8em;
+}
+
+/* 체크줄 */
+.body .todo{position:relative;padding-left:23px}
+.body .todo::before{
+  content:'';position:absolute;left:1px;top:.35em;
+  width:14px;height:14px;border-radius:2px;
+  border:1.6px solid rgba(59,55,51,.42);
+  background:rgba(255,255,255,.5);cursor:pointer;
+}
+.body .todo[data-done="1"]{color:rgba(59,55,51,.4);text-decoration:line-through}
+.body .todo[data-done="1"]::before{background:rgba(59,55,51,.68);border-color:rgba(59,55,51,.68)}
+.body .todo[data-done="1"]::after{
+  content:'';position:absolute;left:4.6px;top:.62em;
+  width:6px;height:3px;border-left:1.8px solid #fff;border-bottom:1.8px solid #fff;
+  transform:rotate(-45deg);
+}
+
+/* 하단 툴바 */
+.tools{
+  display:flex;align-items:center;gap:1px;
+  padding:5px 8px 6px;
+  border-top:1px solid rgba(59,55,51,.09);
+  opacity:0;transition:opacity .16s;
+  -webkit-app-region:no-drag;
+}
+#card:hover .tools,#card:focus-within .tools{opacity:1}
+.tools button{
+  border:0;background:none;cursor:pointer;font-family:inherit;
+  width:25px;height:24px;border-radius:2px;
+  font-size:12px;font-weight:700;color:#7A736C;
+  display:grid;place-content:center;
+  transition:background .12s,color .12s;
+}
+.tools button:hover{background:rgba(59,55,51,.12);color:#3B3733}
+.tools button[aria-pressed="true"]{background:rgba(59,55,51,.2);color:#3B3733}
+.tools .sp{flex:1}
+.tools .del:hover{background:rgba(200,60,80,.16);color:#B03A63}
+
+.pal{display:flex;gap:3px;align-items:center}
+.pal button{width:15px;height:15px;border-radius:50%;padding:0;
+  box-shadow:0 0 0 1px rgba(0,0,0,.16) inset}
+.pal button[aria-pressed="true"]{
+  box-shadow:0 0 0 1.6px #3B3733,0 0 0 3px rgba(255,255,255,.6);background:none}
+
+/* 알람 배지 */
+#alarmBar{
+  margin:0 15px 8px;padding:5px 8px;
+  background:rgba(59,55,51,.09);border-radius:2px;
+  font-size:11px;font-weight:600;color:#7A736C;
+  display:none;align-items:center;gap:6px;
+  -webkit-app-region:no-drag;
+}
+#alarmBar.on{display:flex}
+#alarmBar.due{background:rgba(226,90,130,.18);color:#B03A63}
+#alarmBar button{
+  margin-left:auto;border:0;background:none;cursor:pointer;
+  font-size:13px;line-height:1;color:inherit;opacity:.55;padding:0 2px}
+#alarmBar button:hover{opacity:1}
+
+/* 알람 설정 팝오버 */
+#pop{
+  position:absolute;bottom:34px;left:8px;z-index:30;
+  background:#fff;border-radius:4px;padding:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);
+  display:none;flex-direction:column;gap:7px;width:178px;
+  -webkit-app-region:no-drag;
+}
+#pop.on{display:flex}
+#pop label{font-size:10.5px;font-weight:600;color:#7A736C}
+#pop input{
+  font-family:inherit;font-size:12.5px;padding:5px 6px;
+  border:1px solid rgba(59,55,51,.24);border-radius:2px;width:100%}
+#pop .row{display:flex;gap:5px}
+#pop .row button{
+  flex:1;padding:6px;border-radius:2px;border:0;cursor:pointer;
+  font-family:inherit;font-size:11.5px;font-weight:600;
+  background:#3B3733;color:#fff}
+#pop .row button.ghost{background:rgba(59,55,51,.12);color:#3B3733}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="card">
+  <div class="title" contenteditable="plaintext-only"></div>
+  <div id="alarmBar"><span id="alarmTxt"></span><button id="btnAlarmOff">&#10005;</button></div>
+  <div class="body" contenteditable="true"></div>
+  <div id="pop">
+    <label id="popLabel"></label>
+    <input type="datetime-local" id="alarmInput">
+    <div class="row">
+      <button id="popOk"></button>
+      <button id="popNo" class="ghost"></button>
+    </div>
+  </div>
+  <div class="tools">
+    <div class="pal" id="pal"></div>
+    <span class="sp"></span>
+    <button id="btnTodo">&#9745;</button>
+    <button id="btnAlarm">&#9200;</button>
+    <button id="btnPin" aria-pressed="false">&#128204;</button>
+    <button id="btnDel" class="del">&#10005;</button>
+  </div>
+  <div id="tape"><i></i></div>
+  <div class="grip"></div>
+</div>
+<script src="card.js"></script>

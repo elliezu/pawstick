@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>PawStick</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Pretendard Variable',Pretendard,system-ui,sans-serif;
+  background:linear-gradient(160deg,#39405A,#2E3450);
+  color:#E6E3F0;display:flex;flex-direction:column;overflow:hidden;
+}
+header{padding:16px 16px 12px;display:flex;align-items:center;gap:9px}
+header h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
+header .count{font-size:11px;color:#8E88AC;margin-left:auto}
+#new{
+  margin:0 14px 12px;padding:10px;border:1px dashed rgba(255,255,255,.3);
+  border-radius:3px;background:rgba(255,255,255,.09);color:#E6E3F0;
+  font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  transition:background .15s,border-color .15s}
+#new:hover{background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.52)}
+#list{flex:1;overflow-y:auto;padding:0 10px 14px}
+#list::-webkit-scrollbar{width:7px}
+#list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
+
+.row{
+  display:flex;align-items:center;gap:9px;padding:9px;margin-bottom:3px;
+  border-radius:3px;cursor:pointer;transition:background .12s}
+.row:hover{background:rgba(255,255,255,.09)}
+.row .dot{width:12px;height:12px;border-radius:2px;flex:0 0 12px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.18) inset}
+.row .meta{flex:1;min-width:0}
+.row .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;color:#EAE7F5}
+.row .s{font-size:10.5px;color:#8E88AC;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;margin-top:2px}
+.row .tag{font-size:9.5px;color:#F4A6C0;flex:0 0 auto;letter-spacing:.06em}
+.row .off{opacity:.45}
+.row .x{
+  border:0;background:none;cursor:pointer;color:#8E88AC;font-size:13px;
+  padding:3px 5px;border-radius:2px;flex:0 0 auto;opacity:0;transition:opacity .12s}
+.row:hover .x{opacity:1}
+.row .x:hover{background:rgba(220,70,100,.22);color:#FFC2D4}
+.empty{padding:24px 12px;text-align:center;color:#8E88AC;font-size:12.5px;line-height:1.8}
+footer{padding:11px 16px;border-top:1px solid rgba(255,255,255,.08);
+  font-size:10.5px;color:#8E88AC;line-height:1.7}
+</style>
+
+<header>
+  <h1 id="appName">PawStick</h1>
+  <span class="count" id="count"></span>
+</header>
+<button id="new"></button>
+<div id="list"></div>
+<footer id="footer"></footer>
+
+<script>
+const list  = document.getElementById('list');
+const count = document.getElementById('count');
+const COLORS = ['#FFDCC6','#FCEFAF','#C8EEDD','#CDE3FA','#E1D4F4','#FAD3E1'];
+
+let S = {};   // 문구
+const t = (k, v) => {
+  let s = S[k] != null ? S[k] : k;
+  if (v) for (const key in v) s = s.replace('{' + key + '}', v[key]);
+  return s;
+};
+
+const strip = h => { const d=document.createElement('div'); d.innerHTML=h||''; return d.textContent||''; };
+
+async function render(){
+  const memos = await window.api.list();
+  memos.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  count.textContent = memos.length ? memos.length + t('countSuffix') : '';
+  list.innerHTML = '';
+
+  if(!memos.length){
+    list.innerHTML = `<div class="empty">${t('emptyTitle')}<br>${t('emptyHint')}</div>`;
+    return;
+  }
+
+  memos.forEach(m=>{
+    const el = document.createElement('div');
+    el.className = 'row';
+    const title = (m.title || '').trim() || t('untitled');
+
+    el.innerHTML = `
+      <span class="dot ${m.open?'':'off'}" style="background:${COLORS[m.color||0]}"></span>
+      <span class="meta"><span class="t"></span></span>
+      ${m.alarm ? `<span class="tag">${t('alarmTag')}</span>` : ''}
+      <button class="x" title="${t('tipClose')}">&#10005;</button>`;
+    el.querySelector('.t').textContent = title;
+
+    el.onclick = e=>{
+      if(e.target.closest('.x')) return;
+      window.api.open(m.id);
+    };
+    el.querySelector('.x').onclick = async e=>{
+      e.stopPropagation();
+      if(confirm(t('confirmDelete', { title }))){
+        await window.api.remove(m.id);
+        render();
+      }
+    };
+    list.appendChild(el);
+  });
+}
+
+document.getElementById('new').onclick = async ()=>{
+  await window.api.create();
+  render();
+};
+
+(async function init(){
+  const { strings } = await window.api.i18n();
+  S = strings;
+  document.documentElement.lang = S === undefined ? 'en' : (S.countSuffix ? 'ko' : 'en');
+  document.getElementById('new').textContent = t('newMemo');
+  document.getElementById('footer').textContent = t('footerHint');
+  window.api.onListChanged(()=> render());
+  render();
+})();
+</script>

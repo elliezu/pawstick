@@ -1,0 +1,58 @@
+{
+  "name": "pawstick",
+  "productName": "PawStick",
+  "version": "0.1.0",
+  "description": "광고 없는 바탕화면 포스트잇 메모",
+  "author": "StudioCats",
+  "license": "GPL-3.0",
+  "homepage": "https://studiocats.kr",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "kr.studiocats.pawstick",
+    "productName": "PawStick",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "store.js",
+      "settings.js",
+      "backup.js",
+      "i18n.js",
+      "card.js",
+      "index.html",
+      "manager.html"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "portable": {
+      "artifactName": "PawStick-${version}-portable.exe"
+    },
+    "nsis": {
+      "artifactName": "PawStick-${version}-setup.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PawStick",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
+  }
+}
