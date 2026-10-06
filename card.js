@@ -43,20 +43,39 @@ function paintAlarm(){
 
 /* 현재 커서가 있는 블록 요소를 찾는다.
    contenteditable 첫 줄은 블록 없이 텍스트만 있을 수 있어서 그 경우 div로 감싼다. */
-function currentBlock(){
+function currentBlock(create = true){
   const sel = window.getSelection();
   if(!sel.rangeCount) return null;
   let n = sel.anchorNode;
   if(!n || !body.contains(n)) return null;
 
+  // An empty contenteditable (or a caret between lines) selects the body
+  // itself. Resolve that boundary before walking through parent nodes.
+  if(n === body){
+    n = body.childNodes[sel.anchorOffset] || body.childNodes[sel.anchorOffset - 1];
+    if(!n){
+      if(!create) return null;
+      n = document.createElement('div');
+      n.appendChild(document.createElement('br'));
+      body.appendChild(n);
+      caretToEnd(n);
+    }
+  }
+
   // body 직속 텍스트 노드면 div로 감싸기
   if(n.nodeType === 3 && n.parentNode === body){
+    if(!create) return n;
     const d = document.createElement('div');
     body.insertBefore(d, n);
     d.appendChild(n);
+    caretToEnd(d);
     return d;
   }
-  while(n && n.parentNode !== body) n = n.parentNode;
+  // A blockquote is an indentation container, not the editable line.
+  while(n && n !== body && (!n.parentNode ||
+        (n.parentNode !== body && n.parentNode.nodeName !== 'BLOCKQUOTE'))){
+    n = n.parentNode;
+  }
   return (n && n.nodeType === 1) ? n : null;
 }
 
@@ -90,10 +109,10 @@ function caretToEnd(el){
    "- "  → 불릿 목록
    "[] " → 체크박스 */
 function autoFormat(){
-  const el = currentBlock();
-  if(!el) return false;
+  const candidate = currentBlock(false);
+  if(!candidate) return false;
 
-  const txt = el.textContent;
+  const txt = candidate.textContent;
   let cut = 0, kind = null;
 
   let m = txt.match(/^[-*]\s/);
@@ -103,6 +122,10 @@ function autoFormat(){
     if(m){ cut = m[0].length; kind = 'todo'; }
   }
   if(!kind) return false;
+
+  // Plain text must not be wrapped/repositioned on every input. In
+  // particular, rebuilding its text node breaks an active IME composition.
+  const el = currentBlock();
 
   if(kind === 'bullet' && el.classList.contains('bullet')) return false;
   if(kind === 'todo'   && el.classList.contains('todo'))   return false;
@@ -126,8 +149,8 @@ function autoFormat(){
 /* 서식 벗어나기 — 내용이 빈 서식 줄에서 백스페이스를 누르면 서식을 푼다.
    노션과 같은 방식. */
 function escapeFormat(){
-  const el = currentBlock();
-  if(!el) return false;
+  const el = currentBlock(false);
+  if(!el || el.nodeType !== 1) return false;
   if(!el.classList.contains('bullet') && !el.classList.contains('todo')) return false;
   if(el.textContent.length > 0) return false;
 
@@ -140,22 +163,17 @@ function escapeFormat(){
 
 function toggleTodo(){
   body.focus();
-  const sel = window.getSelection();
-  let n = sel.anchorNode;
-  if(!n || !body.contains(n)){
-    const d = document.createElement('div');
-    d.className='todo'; d.dataset.done='0'; d.textContent=t('todoDefault');
-    body.appendChild(d); save({body:body.innerHTML}); return;
+  let n = currentBlock();
+  if(!n){
+    n = document.createElement('div');
+    n.appendChild(document.createElement('br'));
+    body.appendChild(n);
+    caretToEnd(n);
   }
-  while(n && n.parentNode !== body) n = n.parentNode;
-  if(!n) return;
-  if(n.nodeType === 3){
-    const d = document.createElement('div');
-    d.className='todo'; d.dataset.done='0';
-    n.parentNode.insertBefore(d, n); d.appendChild(n);
-  } else if(n.classList.contains('todo')){
+  if(n.classList.contains('todo')){
     n.classList.remove('todo'); delete n.dataset.done;
   } else {
+    n.classList.remove('bullet');
     n.classList.add('todo'); n.dataset.done='0';
   }
   save({body:body.innerHTML});
@@ -207,11 +225,20 @@ title.addEventListener('keydown', e=>{
   if(e.key==='Enter'){ e.preventDefault(); body.focus(); }
 });
 
-body.addEventListener('input', ()=>{
+let composing = false;
+body.addEventListener('compositionstart', () => { composing = true; });
+body.addEventListener('compositionend', () => {
+  composing = false;
+  autoFormat();
+  save({body:body.innerHTML});
+});
+body.addEventListener('input', e=>{
+  if(composing || e.isComposing) return;
   autoFormat();
   save({body:body.innerHTML});
 });
 body.addEventListener('keydown', e=>{
+  if(composing || e.isComposing || e.keyCode === 229) return;
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='b'){
     e.preventDefault(); document.execCommand('bold'); save({body:body.innerHTML});
   }
@@ -235,7 +262,10 @@ body.addEventListener('click', e=>{
   save({body:body.innerHTML});
 });
 
-document.getElementById('btnTodo').onclick = toggleTodo;
+const btnTodo = document.getElementById('btnTodo');
+// Keep the editing caret when a pointer presses the toolbar button.
+btnTodo.addEventListener('mousedown', e => e.preventDefault());
+btnTodo.onclick = toggleTodo;
 
 document.getElementById('btnAlarm').onclick = ()=>{
   alarmInput.value = toLocalValue(alarmAt ? new Date(alarmAt) : new Date(Date.now()+3600000));
